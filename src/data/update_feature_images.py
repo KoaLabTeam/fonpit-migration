@@ -58,7 +58,7 @@ def updateFeatureImages():
             # print(updateres)
             # print(mediaId)
             pbar.update(1)  # one file created
-            return res.json()['id']
+            return mediaId
 
         except Exception as e:
             logging.error('error on creating media: %s', e)

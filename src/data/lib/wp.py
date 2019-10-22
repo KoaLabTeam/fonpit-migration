@@ -1,4 +1,5 @@
 import pandas as pd
+from urllib.parse import urlparse
 from dotenv import find_dotenv, load_dotenv
 from pathlib import Path
 import logging
@@ -149,3 +150,142 @@ def getWpPosts():
     '''
     posts = pd.read_sql(post_query, wp_engine, index_col=["legacy_article_id"])
     return posts
+
+
+def getWpPostByLegacyArticleId(legacyArticleId):
+    post_query = f'''
+    SELECT 
+        wp.*, 
+        wpm.meta_value as legacy_article_id 
+    FROM wp_posts wp, wp_postmeta wpm 
+    WHERE 
+        wp.ID=wpm.post_id 
+        AND wpm.meta_key='legacy_article_id' 
+        AND wpm.meta_value='{legacyArticleId}';
+    '''
+    posts = pd.read_sql(post_query, wp_engine, index_col=[
+                        "legacy_article_id"]).to_records()
+
+    if len(posts) > 0:
+        return posts[0]
+    else:
+        return None
+
+
+def getTermIdByTaxonomyAndSlugname(taxonomy='category', slug=None):
+    taxonomy_query = f'''
+    SELECT t.*
+    FROM
+        local.wp_terms t,
+        local.wp_term_taxonomy tx
+    WHERE
+        t.term_id = tx.term_id
+    AND tx.taxonomy = '{taxonomy}'
+    AND t.slug = '{slug}'
+    '''
+    terms = pd.read_sql(taxonomy_query, wp_engine).to_records()
+
+    if len(terms) > 0:
+        return terms[0]
+    else:
+        return None
+
+
+def getUserByLegacyUserId(legacy_user_id):
+    users_query = f'''
+    SELECT wu.*, wum.meta_value as legacy_user_id FROM wp_users wu, wp_usermeta wum WHERE wu.ID=wum.user_id AND wum.meta_key='legacy_user_id' AND wum.meta_value='{legacy_user_id}'
+    '''
+
+    users = pd.read_sql(users_query, wp_engine, index_col=[
+                        'legacy_user_id']).to_records()
+    if len(users) > 0:
+        return users[0]
+    else:
+        print('not found')
+        print('...')
+        print(users_query)
+        print('...')
+        return None
+
+
+def createMediaFromUrl(url, mimeType='image/jpeg', props={}):
+    if url == None:
+        return None
+
+    filename = os.path.basename(urlparse(url).path)
+    mediaSrc = requests.get(url)
+    headers = {
+        'cache-control': 'no-cache',
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        'content-type': mimeType
+    }
+    # print('headers', headers)
+    res = api.post('/media', headers=headers, data=mediaSrc.content)
+    mediaResponse = json.loads(res.text)
+    mediaId = mediaResponse['id']
+
+    updateres = api.put(f'/media/{mediaId}', data=json.dumps(props),
+                        headers={'content-type': 'application/json'})
+
+    return mediaId
+
+
+def getMediaFromLegacy(id='', key='legacy_userfile_id'):
+    mediaQuery = f'''
+    SELECT wp.*, wpm.meta_value as {key} FROM wp_posts wp, wp_postmeta wpm WHERE wp.post_type='attachment' AND wp.ID=wpm.post_id AND wpm.meta_key='{key}' AND wpm.meta_value='{id}' LIMIT 1
+    '''
+
+    medias = pd.read_sql(mediaQuery, wp_engine, index_col=[
+        key]).to_records()
+
+    if len(medias) > 0:
+        return medias[0]
+    else:
+        return None
+
+
+def getCommentFromLegacy(id='', key='legacy_comment_id'):
+    print('looking for comment?', id, key)
+    commentQuery = f'''
+    SELECT 
+        c.*, 
+        cm.meta_value as {key} 
+    FROM 
+        wp_comments c, 
+        wp_commentmeta cm 
+    WHERE
+        c.comment_ID = cm.comment_id
+        AND cm.meta_key='{key}'
+        AND cm.meta_value='{id}'
+    '''
+
+    comments = pd.read_sql(commentQuery, wp_engine,
+                           index_col=[key]).to_records()
+    if len(comments) > 0:
+        print(">>>>>>>>>>>>>> comment found >>>>")
+        return comments[0]
+    else:
+        print("<<<<<<<<<<<<<<< comment not found")
+        return None
+
+
+def getCommentsWithLegacyParentByPostId(postId):
+    commentQuery = f'''
+    SELECT 
+        c.*, 
+        cm.meta_value as legacy_comment_parentid 
+    FROM 
+        wp_comments c, 
+        wp_commentmeta cm 
+    WHERE
+        c.comment_post_ID={postId}
+        AND c.comment_ID = cm.comment_id
+        AND cm.meta_key='legacy_comment_parentid'
+        AND cm.meta_value!=0
+    '''
+
+    comments = pd.read_sql(commentQuery, wp_engine).to_records()
+    if len(comments) > 0:
+        return comments
+    else:
+        return None
