@@ -1,0 +1,102 @@
+2019-10-23 19:27:18,738 - root - INFO - since 2017-01-01 00:00:00
+2019-10-23 19:27:18,738 - root - INFO - limit 100
+2019-10-23 19:27:19,299 - root - INFO - start syncing articles since 1483225200.0
+2019-10-23 19:27:19,299 - root - INFO - 
+    SELECT
+        a.*
+    FROM
+        fonpit.Article a
+    WHERE
+        a.deleted=0
+        AND a.published=1
+        AND a.publishingDate < '2019-10-23 19:27:19'
+        AND a.modificationDate > '2017-01-01 00:00:00'
+        AND a.language = 'de'
+    ORDER BY a.publishingDate DESC
+    LIMIT 0, 100
+    
+2019-10-23 19:27:19,484 - root - INFO - handling article 611490 - "Google Pixel 4 XL: Die Anfangseuphorie ist weg"
+2019-10-23 19:27:19,566 - root - INFO - handling categories |hardware|
+2019-10-23 19:27:19,566 - root - INFO - ensuring categories ['hardware']
+2019-10-23 19:27:19,571 - root - INFO - handle tags? []
+2019-10-23 19:27:19,706 - root - INFO - handleUser: looking for apit user: 7021684
+2019-10-23 19:27:19,706 - root - INFO - looking for wordpress user by legacy_user_id: 7021684
+2019-10-23 19:27:19,728 - root - INFO - found
+2019-10-23 19:27:19,874 - root - INFO - creating media
+2019-10-23 19:27:25,309 - root - ERROR - 404 Client Error: Not Found for url: http://androidpit.local/wp-json/wp/v2/media
+Traceback (most recent call last):
+  File "src/data/lib/migration.py", line 126, in handleArticle
+    article, authorId=authorId)
+  File "src/data/lib/migration.py", line 232, in handleFeatureImage
+    "legacy_userfile_id": f'{feature_image.id}'
+  File "/Users/marsch/DEV/gg/nextpit/wordpress_migration/src/data/lib/wp.py", line 225, in createMediaFromUrl
+    res = api.post('/media', headers=headers, data=mediaSrc.content)
+  File "/Users/marsch/DEV/gg/nextpit/wordpress_migration/src/data/lib/wp.py", line 62, in post
+    res.raise_for_status()
+  File "/Users/marsch/anaconda3/lib/python3.6/site-packages/requests/models.py", line 937, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 404 Client Error: Not Found for url: http://androidpit.local/wp-json/wp/v2/media
+2019-10-23 19:27:25,312 - root - INFO - handling article 611507 - "Huawei Mate X: Marktstart noch im November, Nachfolger schon angekündigt"
+2019-10-23 19:27:25,319 - root - INFO - handling categories |hardware|
+2019-10-23 19:27:25,320 - root - INFO - ensuring categories ['hardware']
+2019-10-23 19:27:25,324 - root - INFO - handle tags? ['huawei']
+2019-10-23 19:27:25,479 - root - INFO - handleUser: looking for apit user: 7666996
+2019-10-23 19:27:25,479 - root - INFO - looking for wordpress user by legacy_user_id: 7666996
+2019-10-23 19:27:25,502 - root - INFO - found
+2019-10-23 19:27:25,649 - root - INFO - creating media
+2019-10-23 19:27:30,956 - root - ERROR - 404 Client Error: Not Found for url: http://androidpit.local/wp-json/wp/v2/media
+Traceback (most recent call last):
+  File "src/data/lib/migration.py", line 126, in handleArticle
+    article, authorId=authorId)
+  File "src/data/lib/migration.py", line 232, in handleFeatureImage
+    "legacy_userfile_id": f'{feature_image.id}'
+  File "/Users/marsch/DEV/gg/nextpit/wordpress_migration/src/data/lib/wp.py", line 225, in createMediaFromUrl
+    res = api.post('/media', headers=headers, data=mediaSrc.content)
+  File "/Users/marsch/DEV/gg/nextpit/wordpress_migration/src/data/lib/wp.py", line 62, in post
+    res.raise_for_status()
+  File "/Users/marsch/anaconda3/lib/python3.6/site-packages/requests/models.py", line 937, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 404 Client Error: Not Found for url: http://androidpit.local/wp-json/wp/v2/media
+2019-10-23 19:27:30,956 - root - INFO - handling article 540825 - "Screenshot machen unter Android: So einfach geht's"
+2019-10-23 19:27:30,963 - root - INFO - handling categories |android-for-beginners|apps|tips-and-tricks|
+2019-10-23 19:27:30,963 - root - INFO - ensuring categories ['android-for-beginners', 'apps', 'tips-and-tricks']
+2019-10-23 19:27:30,976 - root - INFO - handle tags? []
+2019-10-23 19:27:31,108 - root - INFO - handleUser: looking for apit user: 5225897
+2019-10-23 19:27:31,109 - root - INFO - looking for wordpress user by legacy_user_id: 5225897
+2019-10-23 19:27:31,128 - root - INFO - not found
+2019-10-23 19:27:31,129 - root - INFO - user not found 5225897
+2019-10-23 19:27:31,283 - root - INFO - handleProfilePicture: creating profile picture
+2019-10-23 19:27:36,725 - root - INFO - looking for wordpress user by legacy_user_id: 5225897
+2019-10-23 19:27:36,745 - root - INFO - not found
+2019-10-23 19:27:36,745 - root - ERROR - 404 Client Error: Not Found for url: http://androidpit.local/wp-json/wp/v2/media
+2019-10-23 19:27:36,958 - root - INFO - creating media
+2019-10-23 19:27:42,286 - root - ERROR - 404 Client Error: Not Found for url: http://androidpit.local/wp-json/wp/v2/media
+Traceback (most recent call last):
+  File "src/data/lib/migration.py", line 126, in handleArticle
+    article, authorId=authorId)
+  File "src/data/lib/migration.py", line 232, in handleFeatureImage
+    "legacy_userfile_id": f'{feature_image.id}'
+  File "/Users/marsch/DEV/gg/nextpit/wordpress_migration/src/data/lib/wp.py", line 225, in createMediaFromUrl
+    res = api.post('/media', headers=headers, data=mediaSrc.content)
+  File "/Users/marsch/DEV/gg/nextpit/wordpress_migration/src/data/lib/wp.py", line 62, in post
+    res.raise_for_status()
+  File "/Users/marsch/anaconda3/lib/python3.6/site-packages/requests/models.py", line 937, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 404 Client Error: Not Found for url: http://androidpit.local/wp-json/wp/v2/media
+2019-10-23 19:27:42,287 - root - INFO - handling article 611505 - "UE Megaboom: Bluetooth-Lautsprecher für 95 Euro"
+2019-10-23 19:27:42,293 - root - INFO - handling categories None
+2019-10-23 19:27:42,293 - root - INFO - handle tags? ['logitech']
+2019-10-23 19:27:47,311 - root - ERROR - 404 Client Error: Not Found for url: http://androidpit.local/wp-json/wp/v2/tags
+Traceback (most recent call last):
+  File "src/data/lib/migration.py", line 122, in handleArticle
+    tagIds = self.handleTags(article)
+  File "src/data/lib/migration.py", line 215, in handleTags
+    'slug': tag_slug
+  File "/Users/marsch/DEV/gg/nextpit/wordpress_migration/src/data/lib/wp.py", line 62, in post
+    res.raise_for_status()
+  File "/Users/marsch/anaconda3/lib/python3.6/site-packages/requests/models.py", line 937, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 404 Client Error: Not Found for url: http://androidpit.local/wp-json/wp/v2/tags
+2019-10-23 19:27:47,312 - root - INFO - handling article 611502 - "Harmony OS: Kein Android-Gegner von Huawei"
+2019-10-23 19:27:47,318 - root - INFO - handling categories None
+2019-10-23 19:27:47,319 - root - INFO - handle tags? ['Huawei Mate 30 Pro', 'Huawei Mate 30 Lite', 'huawei']

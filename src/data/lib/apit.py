@@ -285,6 +285,22 @@ def getCommentsByArticleId(articleId):
     return comments
 
 
+def getCommentLikes(commentId):
+    query = f'''
+    SELECT * 
+    FROM fonpit.UserEvent 
+    WHERE 
+        event = 'RECEIVE_LIKE'
+        AND articleComment_id='{commentId}'
+    ORDER BY creationDate DESC
+    '''
+    likes = pd.read_sql(query, engine).to_records()
+    if len(likes) > 0:
+        return likes
+    else:
+        None
+
+
 def getApitDevices():
     devices_query = f'''
         SELECT d.id, d.name FROM fonpit.Device d
@@ -304,6 +320,42 @@ def getTextForArticleId(articleId):
     return text
 
 
+def getUsersCount():
+    count_query = f'''
+    SELECT 
+        count(*) as count
+    FROM 
+        User u
+    '''
+    users_count = pd.read_sql(count_query, engine).to_records()
+    return users_count[0].count
+
+
+def getUsers(offset=0, limit=100):
+    user_query = f'''
+        SELECT 
+            u.id,
+            u.username,
+            u.communityName,
+            u.passwordSHA,
+            u.staffPageDescriptionJson,
+            u.emailAddress,
+            u.emailAddressNew,
+            u.roleAssignmentsJson,
+            u.deactivationDate,
+            u.deactivationReason
+        FROM 
+            User u
+        ORDER BY u.lastLoginDate DESC
+        LIMIT {offset},{limit}
+    '''
+
+    users = pd.read_sql(user_query, engine,
+                        index_col=['id']).to_records()
+
+    return users
+
+
 def getUser(userId):
     user_query = f'''
         SELECT 
@@ -316,19 +368,35 @@ def getUser(userId):
             u.emailAddressNew,
             u.roleAssignmentsJson,
             u.deactivationDate,
-            u.deactivationReason,
-            ui.id as profilePictureId,
-            ui.url as profilePictureUrl,
-            ui.mimeType as profilePictureMimeType
+            u.deactivationReason
         FROM 
             User u
-        LEFT JOIN (SELECT * FROM UserImage WHERE deleted=0 GROUP BY user_id ORDER BY creationDate DESC) as ui ON u.id=ui.user_id
         WHERE u.id={userId} 
     '''
     users = pd.read_sql(user_query, engine,
                         index_col=['id']).to_records()
     if len(users) > 0:
         return users[0]
+    else:
+        return None
+
+
+def getUserPicture(userId):
+    picq = f'''
+        SELECT 
+            id as profilePictureId, 
+            url as profilePictureUrl, 
+            mimeType as profilePictureMimeType 
+        FROM UserImage 
+        WHERE 
+            deleted=0 
+            AND user_id={userId} 
+        ORDER BY creationDate DESC 
+        LIMIT 1      
+    '''
+    pics = pd.read_sql(picq, engine).to_records()
+    if len(pics) > 0:
+        return pics[0]
     else:
         return None
 

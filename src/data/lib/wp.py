@@ -5,7 +5,9 @@ from pathlib import Path
 import logging
 import os
 from sqlalchemy import create_engine
+from sqlalchemy.sql.expression import text
 from tqdm import tqdm
+import phpserialize
 
 import requests
 from requests_oauthlib import OAuth1
@@ -133,7 +135,7 @@ def getWpMediaFiles():
 
 def getWpPosts():
     post_query = f'''
-      SELECT 
+      SELECT
         wp.ID,
         wp.post_author,
         wp.post_date,
@@ -154,13 +156,13 @@ def getWpPosts():
 
 def getWpPostByLegacyArticleId(legacyArticleId):
     post_query = f'''
-    SELECT 
-        wp.*, 
-        wpm.meta_value as legacy_article_id 
-    FROM wp_posts wp, wp_postmeta wpm 
-    WHERE 
-        wp.ID=wpm.post_id 
-        AND wpm.meta_key='legacy_article_id' 
+    SELECT
+        wp.*,
+        wpm.meta_value as legacy_article_id
+    FROM wp_posts wp, wp_postmeta wpm
+    WHERE
+        wp.ID=wpm.post_id
+        AND wpm.meta_key='legacy_article_id'
         AND wpm.meta_value='{legacyArticleId}';
     '''
     posts = pd.read_sql(post_query, wp_engine, index_col=[
@@ -192,6 +194,8 @@ def getTermIdByTaxonomyAndSlugname(taxonomy='category', slug=None):
 
 
 def getUserByLegacyUserId(legacy_user_id):
+    logging.info(
+        f'looking for wordpress user by legacy_user_id: {legacy_user_id}')
     users_query = f'''
     SELECT wu.*, wum.meta_value as legacy_user_id FROM wp_users wu, wp_usermeta wum WHERE wu.ID=wum.user_id AND wum.meta_key='legacy_user_id' AND wum.meta_value='{legacy_user_id}'
     '''
@@ -199,12 +203,10 @@ def getUserByLegacyUserId(legacy_user_id):
     users = pd.read_sql(users_query, wp_engine, index_col=[
                         'legacy_user_id']).to_records()
     if len(users) > 0:
+        logging.info('found')
         return users[0]
     else:
-        print('not found')
-        print('...')
-        print(users_query)
-        print('...')
+        logging.info('not found')
         return None
 
 
@@ -245,14 +247,13 @@ def getMediaFromLegacy(id='', key='legacy_userfile_id'):
 
 
 def getCommentFromLegacy(id='', key='legacy_comment_id'):
-    print('looking for comment?', id, key)
     commentQuery = f'''
-    SELECT 
-        c.*, 
-        cm.meta_value as {key} 
-    FROM 
-        wp_comments c, 
-        wp_commentmeta cm 
+    SELECT
+        c.*,
+        cm.meta_value as {key}
+    FROM
+        wp_comments c,
+        wp_commentmeta cm
     WHERE
         c.comment_ID = cm.comment_id
         AND cm.meta_key='{key}'
@@ -262,21 +263,19 @@ def getCommentFromLegacy(id='', key='legacy_comment_id'):
     comments = pd.read_sql(commentQuery, wp_engine,
                            index_col=[key]).to_records()
     if len(comments) > 0:
-        print(">>>>>>>>>>>>>> comment found >>>>")
         return comments[0]
     else:
-        print("<<<<<<<<<<<<<<< comment not found")
         return None
 
 
 def getCommentsWithLegacyParentByPostId(postId):
     commentQuery = f'''
-    SELECT 
-        c.*, 
-        cm.meta_value as legacy_comment_parentid 
-    FROM 
-        wp_comments c, 
-        wp_commentmeta cm 
+    SELECT
+        c.*,
+        cm.meta_value as legacy_comment_parentid
+    FROM
+        wp_comments c,
+        wp_commentmeta cm
     WHERE
         c.comment_post_ID={postId}
         AND c.comment_ID = cm.comment_id
@@ -289,3 +288,41 @@ def getCommentsWithLegacyParentByPostId(postId):
         return comments
     else:
         return None
+
+
+def createWpUserViaSQL(payload):
+    logging.info(f'create using sql {payload}')
+    userslug = slugify(payload['username'])
+
+    rs = wp_engine.execute(text("INSERT INTO `wp_users` (`user_login`, `user_pass`, `user_nicename`, `user_email`, `user_registered`, `user_status`, `display_name`) VALUES (:username, :name, :userslug, :email, :registerdate, :status, :displayname)"),
+                           username=payload['username'], name=payload['name'], userslug=userslug, email=payload['email'], registerdate='2019-10-17 12:00:00', status=0, displayname=payload['name'])
+
+    user_id = rs.lastrowid
+    logging.info(f'user_id {user_id}')
+
+    if len(payload['roles']) > 0:
+        # [{x: True}   for x in payload['roles']]
+        capabilities = {payload['roles'][0]: True}
+        capabilities = phpserialize.dumps(capabilities)
+    else:
+        capabilities = ''
+
+    insertUserMetaField(user_id, 'nickname', payload['email'])
+    insertUserMetaField(user_id, 'first_name', payload['first_name'])
+    insertUserMetaField(user_id, 'last_name', payload['last_name'])
+    insertUserMetaField(user_id, 'locale', payload['locale'])
+    insertUserMetaField(user_id, 'description', payload['description'])
+    insertUserMetaField(user_id, 'wp_capabilities', capabilities)
+    insertUserMetaField(user_id, 'wp_user_avatar',
+                        payload['meta']['wp_user_avatar'])
+    insertUserMetaField(user_id, 'legacy_user_id',
+                        payload['meta']['legacy_user_id'])
+
+    logging.info(f'inserted meta data')
+    # meta_rs = wp_engine.execute(meta_q)
+    return user_id
+
+
+def insertUserMetaField(user_id, meta_key, meta_value):
+    wp_engine.execute(text("INSERT INTO `wp_usermeta` (`user_id`, `meta_key`, `meta_value`) VALUES (:user_id, :meta_key, :meta_value)"),
+                      user_id=user_id, meta_key=meta_key, meta_value=meta_value)

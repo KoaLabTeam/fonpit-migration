@@ -6,11 +6,16 @@ import json
 import logging
 from concurrent.futures import ThreadPoolExecutor as PoolExecutor
 import pandas as pd
+from tqdm import tqdm
 import click
 import dateparser
 from requests.exceptions import HTTPError
+
 log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-logging.basicConfig(level=logging.INFO, format=log_fmt)
+logging.basicConfig(level=logging.INFO, format=log_fmt,
+                    filename='migration.log', filemode='w')
+# log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+# logging.basicConfig(level=logging.INFO, format=log_fmt)
 
 lastRunTs = 1571213249
 lastRunTs = 0
@@ -36,6 +41,8 @@ class SyncRunner:
 
     def run(self, limit=10, ):
         try:
+
+            # self.handleUsers()
             logging.info(f'start syncing articles since {self.syncSince}')
 
             if self.specificArticleId != None:
@@ -68,6 +75,38 @@ class SyncRunner:
         except Exception as e:
             logging.exception(e)
 
+    def handleUsers(self, limit=10000):
+        maxresults = min(apit.getUsersCount(), limit)
+        logging.info(f'start syncing {maxresults} users')
+        offset = 0
+        chunksize = min(500, limit)
+
+        pbar = tqdm(total=maxresults)
+        while True:
+            chunk = apit.getUsers(offset=offset, limit=chunksize)
+            if len(chunk) > 0:
+                with PoolExecutor(max_workers=10) as executor:
+                    for _ in executor.map(self.handleUser, chunk):
+                        pass
+            else:
+                logging.info('no users to migrate')
+            pbar.update(len(chunk))
+
+            offset += chunksize
+            if (offset+chunksize) > maxresults:
+                chunksize = maxresults - offset
+
+            if len(chunk) < chunksize or offset >= maxresults:
+                break
+        # users = apit.getUsersId()
+        # userIds = [user.id for user in users]
+        # if len(users) > 0:
+        #     with PoolExecutor(max_workers=24) as executor:
+        #         for _ in executor.map(self.handleUser, userIds):
+        #             pass
+        # else:
+        #     logging.info('no users to migrate')
+
     def handleArticle(self, article):
         logging.info(f'handling article {article.id} - "{article.title}"')
 
@@ -81,7 +120,8 @@ class SyncRunner:
 
             categoryIds = self.handleCategories(article)
             tagIds = self.handleTags(article)
-            authorId = self.handleAuthor(article)
+            author = apit.getUser(article.createdBy_id)
+            authorId = self.handleUser(author)
             featureImageId = self.handleFeatureImage(
                 article, authorId=authorId)
             text = apit.getTextForArticleId(article.id)
@@ -179,62 +219,6 @@ class SyncRunner:
         else:
             return []
 
-    def handleAuthor(self, article):
-        logging.info('handling author')
-        wp_author = wp.getUserByLegacyUserId(article.createdBy_id)
-
-        if wp_author is None:
-            apit_user = apit.getUser(article.createdBy_id)
-            profile_picture_id = self.handleProfilePicture(apit_user)
-
-            if apit_user.staffPageDescriptionJson is not None:
-                description = json.loads(apit_user.staffPageDescriptionJson)
-            else:
-                description = json.loads('{"de": ""}')
-
-            if apit_user.emailAddressNew is not None:
-                email = apit_user.emailAddressNew
-            else:
-                email = apit_user.emailAddress
-
-            email = re.sub(r"_DA_\d*$", "", email)
-            name = apit_user.communityName.split(' ')
-            payload = {
-                "username": email,
-                "name": apit_user.communityName,
-                "first_name": name[0],
-                "last_name": name[1] if len(name) > 1 else '',
-                "roles": ["author"],
-                "email": email,
-                "description": description.get('de'),
-                "locale": "en_US",
-                "nickname": "",
-                "password": "password",
-                "meta": {
-                    "legacy_user_id": f'{apit_user.id}',
-                    "wp_user_avatar": f'{profile_picture_id}'
-                }
-            }
-
-            new_author = wp.api.post('/users', data=json.dumps(payload),
-                                     headers={'content-type': 'application/json'}).json()
-
-            return new_author['id']
-        else:
-            return wp_author.ID
-
-    def handleProfilePicture(self, apit_user):
-        profile_picture = wp.getMediaFromLegacy(
-            id=apit_user.profilePictureId, key='legacy_userimage_id')
-
-        if profile_picture is None:
-            logging.info('creating profile picture')
-            profile_picture_id = wp.createMediaFromUrl(
-                apit_user.profilePictureUrl, mimeType=apit_user.profilePictureMimeType, props={"meta": {"legacy_userimage_id": f'{apit_user.profilePictureId}'}})
-            return profile_picture_id
-        else:
-            return profile_picture.ID
-
     def handleFeatureImage(self, article, authorId):
         feature_image = apit.getFeatureImageByArticleId(article.id)
         wp_media = wp.getMediaFromLegacy(
@@ -257,12 +241,14 @@ class SyncRunner:
 
         try:
             existingComment = wp.getCommentFromLegacy(id=comment.id)
+            self.handleCommentLikes(self, comment.id)
             if existingComment != None:
                 logging.info(
                     f'skipping comment {comment.id} since its already there')
                 return existingComment.comment_ID
 
-            userId = self.handleCommentUser(comment)
+            user = apit.getUser(comment.createdBy_id)
+            userId = self.handleUser(user)
             wp_post = wp.getWpPostByLegacyArticleId(comment.article_id)
 
             if wp_post is None:
@@ -295,14 +281,25 @@ class SyncRunner:
             logging.exception(e)
             pass
 
-    def handleCommentUser(self, comment):
-        try:
-            logging.info(f'looking for {comment.createdBy_id}')
-            wp_user = wp.getUserByLegacyUserId(comment.createdBy_id)
-            if wp_user == None:
+    def handleCommentLikes(self, commentId):
+        likes = apit.getCommentLikes(commentId)
+        if likes != None:
+            print(likes)
 
-                apit_user = apit.getUser(comment.createdBy_id)
-                profile_picture_id = self.handleProfilePicture(apit_user)
+    def handleUser(self, apit_user):
+        try:
+            logging.info(f'handleUser: looking for apit user: {apit_user.id}')
+            wp_user = wp.getUserByLegacyUserId(apit_user.id)
+            if wp_user == None:
+                logging.info(f'user not found {apit_user.id}')
+                # apit_user = apit.getUser(apitUserId)
+                apit_user_pic = apit.getUserPicture(apit_user.id)
+
+                if apit_user_pic != None:
+                    profile_picture_id = self.handleProfilePicture(
+                        apit_user_pic)
+                else:
+                    profile_picture_id = 0
 
                 if apit_user.staffPageDescriptionJson is not None:
                     description = json.loads(
@@ -315,16 +312,26 @@ class SyncRunner:
                 else:
                     email = apit_user.emailAddress
 
-                if apit_user.deactivationDate != None:
-                    email = f'{email}.com'
+                roles = []
+
+                if apit_user.roleAssignmentsJson == None:
+                    roles = ["subscriber"]
+                else:
+                    # print(apit_user.roleAssignmentsJson)
+                    roles = ["author"]  # TODO: refine later
+
+                # de-activated user get a cryptic email and empty roles
+                if apit_user.deactivationDate != None or re.match(r"_DA_\d*$", email):
+                    email = re.sub(r"_DA_\d*$", "", email)
+                    email = f'DA___{email}'
+                    logging.info(f'usering mail: {email}')
+                    roles = []
 
                 # email = re.sub(r"_DA_\d*$", "", email)
                 name = apit_user.communityName.split(' ')
-                if profile_picture_id == None:
-                    profile_picture_id = 0
 
                 payload = {
-                    "username": apit_user.username,
+                    "username": email,
                     "name": apit_user.communityName,
                     "first_name": name[0],
                     "last_name": name[1] if len(name) > 1 else '',
@@ -333,23 +340,24 @@ class SyncRunner:
                     "description": description.get('de'),
                     "locale": "en_US",
                     "nickname": "",
-                    "password": "password",
+                    "password": apit_user.passwordSHA,
                     "meta": {
                         "legacy_user_id": f'{apit_user.id}',
                         "wp_user_avatar": f'{profile_picture_id}'
                     }
                 }
 
-                print('new user?', payload)
+                new_user_id = wp.createWpUserViaSQL(payload)
 
-                new_user = wp.api.post('/users', data=json.dumps(payload),
-                                       headers={'content-type': 'application/json'}).json()
-                logging.info(f'user not found, created one')
-                return new_user['id']
+                # new_user = wp.api.post('/users', data=json.dumps(payload),
+                #                        headers={'content-type': 'application/json'}).json()
+                logging.info(f'user created: {email}')
+                return new_user_id
+                # return new_user['id']
             else:
                 return wp_user.ID
         except HTTPError as e:
-            wp_user = wp.getUserByLegacyUserId(comment.createdBy_id)
+            wp_user = wp.getUserByLegacyUserId(apit_user.id)
             if wp_user != None:
                 logging.error('user already existed, race condition')
                 return wp_user.ID
@@ -357,14 +365,27 @@ class SyncRunner:
                 logging.error(e)
             pass
 
+    def handleProfilePicture(self, apit_user_pic):
+        profile_picture = wp.getMediaFromLegacy(
+            id=apit_user_pic.profilePictureId, key='legacy_userimage_id')
+
+        if profile_picture is None:
+            logging.info('handleProfilePicture: creating profile picture')
+            profile_picture_id = wp.createMediaFromUrl(
+                apit_user_pic.profilePictureUrl, mimeType=apit_user_pic.profilePictureMimeType, props={"meta": {"legacy_userimage_id": f'{apit_user_pic.profilePictureId}'}})
+            return profile_picture_id
+        else:
+            return profile_picture.ID
+
     def handleCommentTree(self, postId):
-        logging.info(f'handle comment tree for article: {postId}')
+        logging.info(
+            f'handleCommentTree: handle comment tree for article: {postId}')
         comments_with_parents = wp.getCommentsWithLegacyParentByPostId(postId)
         if comments_with_parents != None:
             for comment in comments_with_parents:
                 if comment.comment_parent != 0:
                     logging.info(
-                        f'skipping {comment.comment_ID} parent already sat')
+                        f'handleCommentTree: skipping {comment.comment_ID} parent already sat')
                     continue
 
                 parent_comment = wp.getCommentFromLegacy(
@@ -378,9 +399,10 @@ class SyncRunner:
 
                 else:
                     logging.error(
-                        f'parent comment for {comment.legacy_comment_parentid} not found')
+                        f'handleCommentTree: parent comment for {comment.legacy_comment_parentid} not found')
         else:
-            logging.info('no comments left with unhandled legacy parents')
+            logging.info(
+                'handleCommentTree: no comments left with unhandled legacy parents')
 
 
 @click.command()
