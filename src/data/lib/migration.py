@@ -42,7 +42,7 @@ class SyncRunner:
     def run(self, limit=10, ):
         try:
 
-            # self.handleUsers()
+            #self.handleUsers()
             logging.info(f'start syncing articles since {self.syncSince}')
 
             if self.specificArticleId != None:
@@ -241,7 +241,7 @@ class SyncRunner:
 
         try:
             existingComment = wp.getCommentFromLegacy(id=comment.id)
-            self.handleCommentLikes(self, comment.id)
+            self.handleCommentLikes(comment.id)
             if existingComment != None:
                 logging.info(
                     f'skipping comment {comment.id} since its already there')
@@ -312,7 +312,7 @@ class SyncRunner:
                 else:
                     email = apit_user.emailAddress
 
-                roles = []
+                roles = ['author']
 
                 if apit_user.roleAssignmentsJson == None:
                     roles = ["subscriber"]

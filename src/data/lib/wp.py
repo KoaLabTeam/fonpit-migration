@@ -1,6 +1,5 @@
 import pandas as pd
 from urllib.parse import urlparse
-from dotenv import find_dotenv, load_dotenv
 from pathlib import Path
 import logging
 import os
@@ -10,7 +9,6 @@ from tqdm import tqdm
 import phpserialize
 
 import requests
-from requests_oauthlib import OAuth1
 import json
 from slugify import slugify
 import re
@@ -32,7 +30,6 @@ class WordpressAPI:
     def __init__(self, base_url=None, username=None, password=None):
         self.base_url = base_url
         self.auth = HTTPBasicAuth(username, password)
-        # self.auth = OAuth1(consumer_key, consumer_secret, token, token_secret)
 
     def pretty_print_POST(self, req):
         print('{}\n{}\r\n{}\r\n\r\n{}'.format(
@@ -70,13 +67,13 @@ class WordpressAPI:
 
 
 api = WordpressAPI(
-    base_url="http://androidpit.local/wp-json/wp/v2",
+    base_url="https://marsch:itsch2san@nextpit.koa.ai/wp-json/wp/v2",
     username="marsch",
     password="itsch2san"
 )
 
 wp_engine = create_engine(
-    'mysql+pymysql://root:root@192.168.95.100:4022/local'
+    'mysql+pymysql://wp_nextpit:itsch2san@127.0.0.1:3306/wp_nextpit'
 )
 
 
@@ -85,8 +82,8 @@ def getWpCategories():
     categories_query = f'''
     SELECT t.*
     FROM
-        local.wp_terms t,
-        local.wp_term_taxonomy tx
+         wp_terms t,
+         wp_term_taxonomy tx
     WHERE
         t.term_id = tx.term_id
     AND tx.taxonomy = 'category'
@@ -102,8 +99,8 @@ def getWpPostTags():
     posttag_query = f'''
     SELECT t.*
     FROM
-        local.wp_terms t,
-        local.wp_term_taxonomy tx
+         wp_terms t,
+         wp_term_taxonomy tx
     WHERE
         t.term_id = tx.term_id
     AND tx.taxonomy = 'post_tag'
@@ -126,7 +123,7 @@ def getWpMediaFiles():
     SELECT wp.*, wpm.meta_value as legacy_userfile_id FROM wp_posts wp, wp_postmeta wpm WHERE wp.post_type='attachment' AND wpm.post_id=wp.id AND wpm.meta_key='legacy_userfile_id'
     '''
     # media_query = f'''
-    # SELECT * FROM local.wp_posts WHERE post_type='attachment';
+    # SELECT * FROM  wp_posts WHERE post_type='attachment';
     # '''
     attachments = pd.read_sql(media_query, wp_engine,
                               index_col=['legacy_userfile_id'])
@@ -148,7 +145,7 @@ def getWpPosts():
         wp.ping_status,
         wp.post_name,
         wpm.meta_value as legacy_article_id
-      FROM local.wp_posts wp, wp_postmeta wpm WHERE wp.post_type = 'post' AND wp.ID = wpm.post_id AND meta_key='legacy_article_id'
+      FROM  wp_posts wp, wp_postmeta wpm WHERE wp.post_type = 'post' AND wp.ID = wpm.post_id AND meta_key='legacy_article_id'
     '''
     posts = pd.read_sql(post_query, wp_engine, index_col=["legacy_article_id"])
     return posts
@@ -178,8 +175,8 @@ def getTermIdByTaxonomyAndSlugname(taxonomy='category', slug=None):
     taxonomy_query = f'''
     SELECT t.*
     FROM
-        local.wp_terms t,
-        local.wp_term_taxonomy tx
+         wp_terms t,
+         wp_term_taxonomy tx
     WHERE
         t.term_id = tx.term_id
     AND tx.taxonomy = '{taxonomy}'

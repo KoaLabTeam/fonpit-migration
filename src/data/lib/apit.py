@@ -1,7 +1,6 @@
 import pandas as pd
 import time
 from datetime import datetime
-from dotenv import find_dotenv, load_dotenv
 from pathlib import Path
 import logging
 import os
@@ -9,7 +8,6 @@ from sqlalchemy import create_engine
 from tqdm import tqdm
 
 import requests
-from requests_oauthlib import OAuth1
 import json
 from slugify import slugify
 import re
