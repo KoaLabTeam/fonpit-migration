@@ -67,13 +67,13 @@ class WordpressAPI:
 
 
 api = WordpressAPI(
-    base_url="https://marsch:itsch2san@nextpit.koa.ai/wp-json/wp/v2",
+    base_url="https://marsch:itsch2san@androidpit.local/wp-json/wp/v2",
     username="marsch",
     password="itsch2san"
 )
 
 wp_engine = create_engine(
-    'mysql+pymysql://wp_nextpit:itsch2san@127.0.0.1:3306/wp_nextpit'
+    'mysql+pymysql://root:root@192.168.95.100:4022/local'
 )
 
 
@@ -291,8 +291,8 @@ def createWpUserViaSQL(payload):
     logging.info(f'create using sql {payload}')
     userslug = slugify(payload['username'])
 
-    rs = wp_engine.execute(text("INSERT INTO `wp_users` (`user_login`, `user_pass`, `user_nicename`, `user_email`, `user_registered`, `user_status`, `display_name`) VALUES (:username, :name, :userslug, :email, :registerdate, :status, :displayname)"),
-                           username=payload['username'], name=payload['name'], userslug=userslug, email=payload['email'], registerdate='2019-10-17 12:00:00', status=0, displayname=payload['name'])
+    rs = wp_engine.execute(text("INSERT INTO `wp_users` (`user_login`, `user_pass`, `user_nicename`, `user_email`, `user_registered`, `user_status`, `display_name`) VALUES (:username, :password, :name, :userslug, :email, :registerdate, :status, :displayname)"),
+                           username=payload['username'], password=payload['password'], name=payload['name'], userslug=userslug, email=payload['email'], registerdate='2019-10-17 12:00:00', status=0, displayname=payload['name'])
 
     user_id = rs.lastrowid
     logging.info(f'user_id {user_id}')

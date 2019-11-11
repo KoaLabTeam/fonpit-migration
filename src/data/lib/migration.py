@@ -42,7 +42,7 @@ class SyncRunner:
     def run(self, limit=10, ):
         try:
 
-            #self.handleUsers()
+            # self.handleUsers()
             logging.info(f'start syncing articles since {self.syncSince}')
 
             if self.specificArticleId != None:
@@ -283,8 +283,20 @@ class SyncRunner:
 
     def handleCommentLikes(self, commentId):
         likes = apit.getCommentLikes(commentId)
-        if likes != None:
-            print(likes)
+        for like in likes:
+            if like.revocation_id != None:
+                self.handleUnlike(commentId, like)
+            else:
+                self.handleLike(commentId, like)
+
+    def handleLike(self, commentId, like):
+        return
+
+    def handleUnlike(self, commentId, like):
+        likeToUnlike = apit.getLikeById(like.revokedEvent_id)
+        if likeToUnlike == None:
+            logging.info('no like to revoke found')
+            return
 
     def handleUser(self, apit_user):
         try:

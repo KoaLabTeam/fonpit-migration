@@ -270,7 +270,7 @@ def getCommentsByArticleId(articleId):
             ac.article_id=a.id 
             AND ac.deleted=0 
             AND a.id={articleId}
-        ORDER BY a.modificationDate DESC
+        ORDER BY a.modificationDate ASC
         '''
 
     logging.info(comments_query)
@@ -290,13 +290,27 @@ def getCommentLikes(commentId):
     WHERE 
         event = 'RECEIVE_LIKE'
         AND articleComment_id='{commentId}'
-    ORDER BY creationDate DESC
+    ORDER BY creationDate ASC
     '''
     likes = pd.read_sql(query, engine).to_records()
     if len(likes) > 0:
         return likes
     else:
-        None
+        return []
+
+
+def getLikeById(eventId):
+    query = f'''
+    SELECT *
+    FROM fonpit.UserEvent
+    WHERE id={eventId}
+    '''
+
+    likes = pd.read_sql(query, engine).to_records()
+    if len(likes) > 0:
+        return like[0]
+    else:
+        return None
 
 
 def getApitDevices():
