@@ -7,9 +7,10 @@ from sqlalchemy import Table, Column, Integer, String, BigInteger, DateTime, Seq
 from sqlalchemy.dialects.mysql import BIT
 from sqlalchemy.orm import scoped_session, sessionmaker, relationship, backref, column_property
 
+import config
 
 engine = create_engine(
-    'mysql+pymysql://readonly:kfDjArlf@127.0.0.1:33066/fonpit', pool_size=20, max_overflow=0, echo=False)
+    config.apitMysqlConnection, pool_size=20, max_overflow=0, echo=False)
 
 session = scoped_session(sessionmaker(autocommit=False,
                                       autoflush=True,

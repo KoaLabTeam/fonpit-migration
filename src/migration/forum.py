@@ -6,6 +6,7 @@ import models.wordpress as w
 import json
 import re
 import phpserialize
+from datetime import datetime
 
 from tqdm import tqdm
 from sqlalchemy import desc
@@ -55,7 +56,7 @@ def syncForums(limit=1000):
         forum.last_topicid = 0
         forum.last_postid = 0
         forum.last_userid = 0
-        forum.last_post_date = 0
+        forum.last_post_date = datetime.now
         forum.permissions = permissions
         forum.is_cat = is_cat
 

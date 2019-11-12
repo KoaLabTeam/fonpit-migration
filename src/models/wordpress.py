@@ -18,13 +18,13 @@ from requests.auth import HTTPBasicAuth
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 import logging
-
+import config
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS + ":ECDHE-RSA-AES256-GCM-SHA384"
 
 engine = create_engine(
-    'mysql+pymysql://root:root@192.168.95.100:4022/local', pool_size=50, max_overflow=0, echo=False)
+    config.wpMysqlConnection, pool_size=50, max_overflow=0, echo=False)
 
 session = scoped_session(sessionmaker(autocommit=False,
                                       autoflush=False,
@@ -474,7 +474,7 @@ class ForoForum(Model):
     last_topicid = Column(Integer, ForeignKey('wp_wpforo_topics.topicid'))
     last_postid = Column(Integer, ForeignKey('wp_wpforo_posts.postid'))
     last_userid = Column(Integer, ForeignKey('wp_users.ID'))
-    last_post_date = Column(DateTime)
+    last_post_date = Column(DateTime, default=datetime.utcnow)
     topics = Column(Integer, default=0)
     posts = Column(Integer, default=0)
     permissions = Column(Text)
@@ -530,8 +530,8 @@ class ForoPost(Model):
     userid = Column(Integer, ForeignKey('wp_users.ID'))
     title = Column(String(length=255))
     body = Column(Text)
-    created = Column(DateTime)
-    modified = Column(DateTime)
+    created = Column(DateTime, default=datetime.utcnow)
+    modified = Column(DateTime, default=datetime.utcnow)
     likes = Column(Integer, default=0)
     votes = Column(Integer, default=0)
     is_answer = Column(Integer, default=0)
