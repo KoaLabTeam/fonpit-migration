@@ -76,9 +76,9 @@ class WordpressAPI:
 
 
 api = WordpressAPI(
-    base_url="https://androidpit.local/wp-json/wp/v2",
-    username="marsch",
-    password="itsch2san"
+    base_url=config.wpApiBaseUrl,  # "https://androidpit.local/wp-json/wp/v2",
+    username=config.wpUser,  # "marsch",
+    password=config.wpPass  # "itsch2san"
 )
 
 
