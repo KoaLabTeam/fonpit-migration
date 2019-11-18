@@ -502,7 +502,7 @@ class ForoLanguage(Model):
     name = Column(String(length=255))
 
 
-class ForoLikes(Model):
+class ForoLike(Model):
     __tablename__ = 'wp_wpforo_likes'
     likeid = Column(Integer, primary_key=True)
     userid = Column(Integer)
@@ -594,11 +594,11 @@ class ForoSubscribe(Model):
     subid = Column(BigInteger, primary_key=True)
     itemid = Column(BigInteger)
     type = Column(String(length=50))
-    confirmkey = Column(String(length=32))
+    confirmkey = Column(String(length=32), default='migration')
     userid = Column(BigInteger, ForeignKey('wp_users.ID'))
     active = Column(SmallInteger)
-    user_name = Column(String(length=60))
-    user_email = Column(String(length=60))
+    user_name = Column(String(length=60), default='')
+    user_email = Column(String(length=60), default='')
 
     user = relationship('User', foreign_keys=[userid])
 
@@ -676,7 +676,7 @@ class ForoVisit(Model):
     id = Column(BigInteger, primary_key=True)
     userid = Column(BigInteger, ForeignKey('wp_users.ID'))
     name = Column(String(length=60))
-    ip = Column(String(length=60))
+    ip = Column(String(length=60), default='')
     time = Column(Integer)
     forumid = Column(Integer, ForeignKey('wp_wpforo_forums.forumid'))
     topicid = Column(BigInteger, ForeignKey('wp_wpforo_topics.topicid'))

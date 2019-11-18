@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO, format=log_fmt,
                     filename='migration.log', filemode='w')
 
 
-def importUsers(limit=100, chunksize=10, lastLoggedInDate='1970-01-01 0:00'):
+def synctUsers(limit=100, chunksize=10, lastLoggedInDate='1970-01-01 0:00'):
     logging.info('start importing users')
 
     userCount = a.session.query(a.User.id).filter(
@@ -24,7 +24,15 @@ def importUsers(limit=100, chunksize=10, lastLoggedInDate='1970-01-01 0:00'):
     offset = 0
     chunksize = min(chunksize, limit)
 
-    pbar = tqdm(total=maxresults)
+    pbar = tqdm(total=maxresults, desc='Users')
+
+    def handleUserThreaded(userId):
+        w.session()
+        a.session()
+        user = handleUser(userId)
+        w.session.remove()
+        a.session.remove()
+        return user
 
     while True:
         chunk = a.session.query(a.User.id).order_by(desc(a.User.lastLoginDate)).filter(a.User.lastLoginDate >= lastLoggedInDate).offset(
@@ -49,110 +57,83 @@ def importUsers(limit=100, chunksize=10, lastLoggedInDate='1970-01-01 0:00'):
             break
 
 
-def handleUserThreaded(userId):
-
-    w.session()
-    a.session()
-    user = handleUser(userId)
-    w.session.remove()
-    a.session.remove()
-    return user
-
-
 def handleUser(userId):
     logging.info(f'handle user {userId}')
+    try:
+        user = a.User.q.filter(a.User.id == userId).first()
+        if user == None:
+            logging.error(f'user with user.id:{userId} not found')
+            return
 
-    user = a.User.q.filter(a.User.id == userId).first()
-    if user == None:
-        logging.error(f'user with user.id:{userId} not found')
-        return
+        if user.staffPageDescriptionJson is not None:
+            description = json.loads(
+                user.staffPageDescriptionJson)
+        else:
+            description = json.loads('{"de": ""}')
 
-    if user.staffPageDescriptionJson is not None:
-        description = json.loads(
-            user.staffPageDescriptionJson)
-    else:
-        description = json.loads('{"de": ""}')
+        if user.emailAddressNew is not None:
+            email = user.emailAddressNew
+        else:
+            email = user.emailAddress
 
-    if user.emailAddressNew is not None:
-        email = user.emailAddressNew
-    else:
-        email = user.emailAddress
+        roles = ['author']
 
-    roles = ['author']
+        if user.roleAssignmentsJson == None:
+            roles = ["subscriber"]
+        else:
+            # TODO: use better capability mapping at this point
+            roles = ["author"]
 
-    if user.roleAssignmentsJson == None:
-        roles = ["subscriber"]
-    else:
-        roles = ["author"]  # TODO: refine later
+        # de-activated user get a cryptic email and empty roles
+        if user.deactivationDate != None or re.match(r"_DA_\d*$", email):
+            email = re.sub(r"_DA_\d*$", "", email)
+            email = f'DA___{email}'
+            logging.info(f'usering mail: {email}')
+            roles = []
 
-    # de-activated user get a cryptic email and empty roles
-    if user.deactivationDate != None or re.match(r"_DA_\d*$", email):
-        email = re.sub(r"_DA_\d*$", "", email)
-        email = f'DA___{email}'
-        logging.info(f'usering mail: {email}')
-        roles = []
+        if len(roles) > 0:
+            # [{x: True}   for x in payload['roles']]
+            capabilities = {roles[0]: True}
+            capabilities = phpserialize.dumps(capabilities)
+        else:
+            capabilities = ''
 
-    if len(roles) > 0:
-        # [{x: True}   for x in payload['roles']]
-        capabilities = {roles[0]: True}
-        capabilities = phpserialize.dumps(capabilities)
-    else:
-        capabilities = ''
+        # email = re.sub(r"_DA_\d*$", "", email)
+        name = user.communityName.split(' ')
+        if len(name) > 1:
+            firstName = name[0]
+            lastName = name[1]
+        else:
+            firstName = name[0]
+            lastName = ''
 
-    # email = re.sub(r"_DA_\d*$", "", email)
-    name = user.communityName.split(' ')
-    if len(name) > 1:
-        firstName = name[0]
-        lastName = name[1]
-    else:
-        firstName = name[0]
-        lastName = ''
+        userslug = slugify(email)
 
-    userslug = slugify(email)
+        wp_user = w.User.q.join(w.UserMeta).filter(
+            w.UserMeta.meta_key == 'legacy_user_id', w.UserMeta.meta_value == f'{user.id}').first()
+        if wp_user == None:
+            wp_user = w.User(user_login=email, user_pass=user.passwordSHA, user_nicename=user.communityName, user_email=email,
+                             user_url=userslug, user_registered=user.creationDate, user_status=0, display_name=user.communityName, user_activation_key='')
 
-    wp_user = w.User.q.join(w.UserMeta).filter(
-        w.UserMeta.meta_key == 'legacy_user_id', w.UserMeta.meta_value == f'{user.id}').first()
-    if wp_user != None:
-        logging.info(f'user exsists: {wp_user}')
-        wp_user.user_login = email
-        wp_user.user_pass = user.passwordSHA
-        wp_user.user_nicename = user.communityName
-        wp_user.user_email = email
-        wp_user.user_url = userslug
-        wp_user.user_registered = user.creationDate
-        wp_user.user_status = 0
-        wp_user.display_name = user.communityName
-        wp_user.user_activation_key = ''
+        wp_user.addMeta('legacy_user_id', user.id)
+        wp_user.addMeta('nickname', email)
+        wp_user.addMeta('first_name', firstName)
+        wp_user.addMeta('last_name', lastName)
+        wp_user.addMeta('locale', user.locale)
+        wp_user.addMeta('description', description.get('de'))
+        wp_user.addMeta('wp_capabilities', capabilities)
 
-        if w.session.dirty:
-            # save if dirty
-            w.session.commit()
-
-        return wp_user
-    else:
-        logging.info(f'user does not exist: {user.id}')
-        nuser = w.User(user_login=email, user_pass=user.passwordSHA, user_nicename=user.communityName, user_email=email,
-                       user_url=userslug, user_registered=user.creationDate, user_status=0, display_name=user.communityName, user_activation_key='')
-
-        nuser.addMeta('legacy_user_id', user.id)
-        nuser.addMeta('nickname', email)
-        nuser.addMeta('first_name', firstName)
-        nuser.addMeta('last_name', lastName)
-        nuser.addMeta('locale', user.locale)
-        nuser.addMeta('description', description.get('de'))
-        nuser.addMeta('wp_capabilities', capabilities)
-
-        w.session.add(nuser)
+        w.session.add(wp_user)
         w.session.commit()
 
         if user.image == None:
             logging.info(f'user.image is NONE {user.id}')
-            return nuser
+            return wp_user
 
         if user.image.url != None:
             props = {
                 "meta": {"legacy_userimage_id": f'{user.image.id}'},
-                "author": nuser.ID
+                "author": wp_user.ID
             }
 
             existingImage = w.UserMeta.q.filter(
@@ -167,7 +148,10 @@ def handleUser(userId):
             mediaId = w.createMediaFromUrl(
                 user.image.url, user.image.mimeType, props=props)
 
-            nuser.addMeta('wp_user_avatar', mediaId)
+            wp_user.addMeta('wp_user_avatar', mediaId)
             w.session.commit()
 
-        return nuser
+        return wp_user
+    except Exception as e:
+        logging.error(e)
+        return None

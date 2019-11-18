@@ -352,6 +352,12 @@ class ForumCategory(Model):
     parent = relationship('ForumCategory', remote_side=[
         id], back_populates='children', uselist=False)
 
+    subscriptions = relationship(
+        'ForumCategoryUserSubscription', back_populates='category')
+
+    progresses = relationship('ForumUserCategoryProgress',
+                              primaryjoin="and_(ForumCategory.id==ForumUserCategoryProgress.category_id)")
+
     def __repr__(self):
         return "<ForumCategory(id='%s', name='%s', nameForNavigation='%s')>" % (self.id, self.name, self.nameForNavigation)
 
@@ -392,6 +398,8 @@ class ForumCategoryUserSubscription(Model):
         'ForumCategory.id'), primary_key=True)
     version = Column(Integer)
 
+    category = relationship('ForumCategory', back_populates='subscriptions')
+
     # TODO: create m:n relationship here!
 
 
@@ -431,6 +439,7 @@ class ForumPost(Model):
     modifiedBy = relationship('User', foreign_keys=[modifiedBy_id])
     deletedBy = relationship('User', foreign_keys=[deletedBy_id])
     reportedBy = relationship('User', foreign_keys=[reportedBy_id])
+    ratings = relationship('ForumPostRating', back_populates='post')
 
     thread = relationship(
         'ForumThread', back_populates='posts', foreign_keys=[thread_id])
@@ -446,9 +455,12 @@ class ForumPostRating(Model):
         'ForumPost.id'), primary_key=True)
     ratingUser_id = Column(Integer, ForeignKey('User.id'), primary_key=True)
     version = Column(Integer)
-    userEventReceivedLike_id = Column(Integer, ForeignKey('UserEvent.id'))
+    userEventReceiveLike_id = Column(Integer, ForeignKey('UserEvent.id'))
     type = Column(Enum('UP', 'DOWN'))
     timestamp = Column(DateTime)
+
+    post = relationship('ForumPost', back_populates='ratings')
+    event = relationship('UserEvent')
 
 
 class ForumPostRatingNEW(Model):
@@ -494,6 +506,9 @@ class ForumThread(Model):
     category = relationship('ForumCategory', foreign_keys=[
                             category_id], back_populates='threads')
 
+    subscriptions = relationship(
+        'ForumThreadUserSubscription', back_populates='thread')
+
 
 class ForumThreadUserSubscription(Model):
     __tablename__ = 'ForumThreadUserSubscription'
@@ -501,6 +516,8 @@ class ForumThreadUserSubscription(Model):
     thread_id = Column(Integer, ForeignKey('ForumThread.id'), primary_key=True)
     version = Column(Integer)
     noFurtherMails = Column(Boolean)
+
+    thread = relationship('ForumThread', back_populates='subscriptions')
 
 
 class ForumUserCategoryProgress(Model):
@@ -511,6 +528,8 @@ class ForumUserCategoryProgress(Model):
     version = Column(Integer)
     lastPostRead_id = Column(Integer, ForeignKey('ForumPost.id'))
     lastCategoryReadDate = Column(DateTime)
+
+    lastPost = relationship('ForumPost', foreign_keys=[lastPostRead_id])
 
 
 class ForumUserGlobalProgress(Model):

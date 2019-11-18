@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO, format=log_fmt,
                     filename='migration.log', filemode='w')
 
 
-def importMatchingArticleComments():
+def syncMatchingArticleComments():
     wp_postmetas = w.PostMeta.q.filter(
         w.PostMeta.meta_key == 'legacy_article_id').all()
     commentIds = []
@@ -41,7 +41,7 @@ def importMatchingArticleComments():
     logging.info('import of matching comments done.')
 
 
-def importArticleComments(limit=100, chunksize=10, lastModificationDate='1970-01-01 0:00'):
+def syncArticleComments(limit=100, chunksize=10, lastModificationDate='1970-01-01 0:00'):
     logging.info('start importing comments')
     commentsCount = a.session.query(a.ArticleComment.id).filter(
         a.ArticleComment.modificationDate >= lastModificationDate, a.ArticleComment.language == 'de', a.ArticleComment.deleted == 0).count()
@@ -50,6 +50,14 @@ def importArticleComments(limit=100, chunksize=10, lastModificationDate='1970-01
     chunksize = min(chunksize, limit)
 
     pbar = tqdm(total=maxresults)
+
+    def handleArticleCommentThreaded(commentId):
+        w.session()
+        a.session()
+        comment = handleArticleComment(commentId)
+        w.session.remove()
+        a.session.remove()
+        return comment
 
     while True:
         chunk = a.session.query(a.ArticleComment.id).order_by(desc(a.ArticleComment.modificationDate)).filter(a.ArticleComment.modificationDate >=
@@ -83,74 +91,69 @@ def fixCommentsCounter():
         w.session.commit()
 
 
-def handleArticleCommentThreaded(commentId):
-    w.session()
-    a.session()
-    comment = handleArticleComment(commentId)
-    w.session.remove()
-    a.session.remove()
-    return comment
-
-
 def handleArticleComment(commentId):
-    comment = a.ArticleComment.q.filter(
-        a.ArticleComment.id == commentId).first()
+    try:
+        comment = a.ArticleComment.q.filter(
+            a.ArticleComment.id == commentId).first()
 
-    if comment == None:
-        logging.error(f'comment with id: {commentId} not found')
-        return
+        if comment == None:
+            logging.error(f'comment with id: {commentId} not found')
+            return
 
-    wp_user = handleUser(comment.createdBy.id)
-    wp_post = w.Post.q.join(w.PostMeta).filter(
-        w.PostMeta.meta_key == 'legacy_article_id', w.PostMeta.meta_value == f'{comment.article.id}').first()
+        wp_user = handleUser(comment.createdBy.id)
+        wp_post = w.Post.q.join(w.PostMeta).filter(
+            w.PostMeta.meta_key == 'legacy_article_id', w.PostMeta.meta_value == f'{comment.article.id}').first()
 
-    if wp_post is None:
-        logging.error(
-            f'skipping comment, since article: {comment.article.id} not present in wordpress')
-        return
+        if wp_post is None:
+            logging.error(
+                f'skipping comment, since article: {comment.article.id} not present in wordpress')
+            return
 
-    parent = None
-    if comment.parent:
-        parent = handleArticleComment(comment.parent.id)
+        parent = None
+        if comment.parent:
+            parent = handleArticleComment(comment.parent.id)
 
-    wp_comment = w.Comment.q.join(w.CommentMeta).filter(
-        w.CommentMeta.meta_key == 'legacy_comment_id', w.CommentMeta.meta_value == f'{comment.id}').first()
+        wp_comment = w.Comment.q.join(w.CommentMeta).filter(
+            w.CommentMeta.meta_key == 'legacy_comment_id', w.CommentMeta.meta_value == f'{comment.id}').first()
 
-    if wp_comment == None:
-        wp_comment = w.Comment()
-        wp_comment.user = wp_user
-        wp_comment.post = wp_post
+        if wp_comment == None:
+            wp_comment = w.Comment()
+            wp_comment.user = wp_user
+            wp_comment.post = wp_post
 
-    wp_comment.comment_content = comment.comment
-    wp_comment.comment_date = comment.modificationDate
-    wp_comment.comment_approved = 1
-    wp_comment.comment_author_email = wp_user.user_email
-    wp_comment.comment_author = wp_user.user_nicename
+        wp_comment.comment_content = comment.comment
+        wp_comment.comment_date = comment.modificationDate
+        wp_comment.comment_approved = 1
+        wp_comment.comment_author_email = wp_user.user_email
+        wp_comment.comment_author = wp_user.user_nicename
 
-    wp_comment.addMeta('legacy_comment_id', comment.id)
+        wp_comment.addMeta('legacy_comment_id', comment.id)
 
-    if parent != None:
-        wp_comment.parent = parent
+        if parent != None:
+            wp_comment.parent = parent
 
-    w.session.add(wp_comment)
-    w.session.commit()
+        w.session.add(wp_comment)
+        w.session.commit()
 
-    for like in comment.likes:
-        awardingUser = handleUser(like.awardedBy.id)
-        status = 'like'
-        if like.revokedEvent_id != None:
-            status = 'unlike'
-        wp_comment.addLike(awardingUser.ID, status, like.creationDate)
+        for like in comment.likes:
+            awardingUser = handleUser(like.awardedBy.id)
+            status = 'like'
+            if like.revokedEvent_id != None:
+                status = 'unlike'
+            wp_comment.addLike(awardingUser.ID, status, like.creationDate)
 
-    w.session.add(wp_comment)
-    w.session.commit()
+        w.session.add(wp_comment)
+        w.session.commit()
 
-    numLikes = len(
-        [x for x in wp_comment.likes if wp_comment.likes.get(x).status == 'like'])
+        numLikes = len(
+            [x for x in wp_comment.likes if wp_comment.likes.get(x).status == 'like'])
 
-    wp_comment.addMeta('_commentliked', numLikes)
+        wp_comment.addMeta('_commentliked', numLikes)
 
-    w.session.add(wp_comment)
-    w.session.commit()
+        w.session.add(wp_comment)
+        w.session.commit()
 
-    return wp_comment
+        return wp_comment
+    except Exception as e:
+        logging.error(e)
+        return None
