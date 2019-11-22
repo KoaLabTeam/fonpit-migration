@@ -136,14 +136,15 @@ def handleUser(userId):
                 "author": wp_user.ID
             }
 
-            existingImage = w.UserMeta.q.filter(
-                w.UserMeta.meta_key == 'legacy_userimage_id', w.UserMeta.meta_value == f'user.image.id').first()
+            logging.info(f'checking userimage_id {user.image.id}')
+            existingImage = w.PostMeta.q.filter(
+                w.PostMeta.meta_key == 'legacy_userimage_id', w.PostMeta.meta_value == f'{user.image.id}').first()
 
             logging.info(f'existing image? {existingImage}')
-            if existingImage == True:
+            if existingImage != None:
                 logging.info(
                     'userimage already existed, returning without upload')
-                return nuser
+                return wp_user
 
             mediaId = w.createMediaFromUrl(
                 user.image.url, user.image.mimeType, props=props)

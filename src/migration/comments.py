@@ -44,7 +44,7 @@ def syncMatchingArticleComments():
 def syncArticleComments(limit=100, chunksize=10, lastModificationDate='1970-01-01 0:00'):
     logging.info('start importing comments')
     commentsCount = a.session.query(a.ArticleComment.id).filter(
-        a.ArticleComment.modificationDate >= lastModificationDate, a.ArticleComment.language == 'de', a.ArticleComment.deleted == 0).count()
+        a.ArticleComment.modificationDate >= lastModificationDate, a.ArticleComment.deleted == 0).count()
     maxresults = min(commentsCount, limit)
     offset = 0
     chunksize = min(chunksize, limit)
@@ -61,7 +61,7 @@ def syncArticleComments(limit=100, chunksize=10, lastModificationDate='1970-01-0
 
     while True:
         chunk = a.session.query(a.ArticleComment.id).order_by(desc(a.ArticleComment.modificationDate)).filter(a.ArticleComment.modificationDate >=
-                                                                                                              lastModificationDate, a.ArticleComment.language == 'de', a.ArticleComment.deleted == 0).offset(offset).limit(chunksize).all()
+                                                                                                              lastModificationDate, a.ArticleComment.deleted == 0).offset(offset).limit(chunksize).all()
         commentIds = [id[0] for id in chunk]
 
         if len(chunk) > 0:

@@ -1,4 +1,4 @@
-from migration.taxonomy import handleTags, handleCategories
+from migration.taxonomy import handleTags, handleCategories, getLanguage
 from migration.users import handleUser
 
 import logging
@@ -14,16 +14,28 @@ from tqdm import tqdm
 from sqlalchemy import desc
 from concurrent.futures import ThreadPoolExecutor as PoolExecutor
 from slugify import slugify
+from time import time
+
 
 log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 logging.basicConfig(level=logging.INFO, format=log_fmt,
                     filename='migration.log', filemode='w')
 
 
+def phpdecode(str):
+    k = phpserialize.loads(bytes(str, 'utf-8'))
+    decoded = {x.decode('utf-8'): v for x, v in k.items()}
+    return decoded
+
+
+def uniqid(prefix=''):
+    return prefix + hex(int(time()))[2:10] + hex(int(time()*1000000) % 0x100000)[2:7]
+
+
 def syncArticles(limit=100, chunksize=10, lastModificationDate='1970-01-01 0:00'):
     logging.info('start importing articles')
     articleCount = a.session.query(a.Article.id).filter(
-        a.Article.modificationDate >= lastModificationDate, a.Article.language == 'de', a.Article.published == True, a.Article.deleted == 0).count()
+        a.Article.modificationDate >= lastModificationDate, a.Article.published == True, a.Article.deleted == 0, a.Article.translationSource_id == None).count()
 
     maxresults = min(articleCount, limit)
     offset = 0
@@ -41,7 +53,7 @@ def syncArticles(limit=100, chunksize=10, lastModificationDate='1970-01-01 0:00'
 
     while True:
         chunk = a.session.query(a.Article.id).order_by(desc(a.Article.modificationDate)).filter(
-            a.Article.modificationDate >= lastModificationDate, a.Article.language == 'de', a.Article.published == True, a.Article.deleted == 0).offset(offset).limit(chunksize).all()
+            a.Article.modificationDate >= lastModificationDate, a.Article.published == True, a.Article.deleted == 0, a.Article.translationSource_id == None).offset(offset).limit(chunksize).all()
 
         articleIds = [id[0] for id in chunk]
 
@@ -65,7 +77,7 @@ def syncArticles(limit=100, chunksize=10, lastModificationDate='1970-01-01 0:00'
     triggerAutoImageImports()
 
 
-def handleArticle(articleId):
+def handleArticle(articleId, translation_term=None):
     try:
         logging.info(f'looking for article: {articleId}')
         article = a.Article.q.filter(a.Article.id == articleId).first()
@@ -95,7 +107,7 @@ def handleArticle(articleId):
         wp_post.post_date = article.publishingDate
         wp_post.post_modified = article.modificationDate
 
-        wp_post.terms = categories + tags
+        wp_post.terms = categories + tags + getLanguage(article.language)
 
         wp_post.author = wp_author
         wp_post.post_status = 'publish'
@@ -119,6 +131,42 @@ def handleArticle(articleId):
 
         w.session.add(wp_post)
         w.session.commit()
+
+        if translation_term != None:
+            wp_post.terms = wp_post.terms + [translation_term]
+
+            w.session.add(wp_post)
+            w.session.commit()
+        # recursively handle translations
+        if len(article.translations) > 0:
+            nt = w.Term()
+            tid = uniqid('pll_')
+            nt.taxonomy = 'post_translations'
+            nt.slug = tid
+            nt.name = tid
+            wp_post.terms = wp_post.terms + [nt]
+
+            w.session.add(nt)
+            w.session.add(wp_post)
+            w.session.commit()
+            ntdesc = {article.language: wp_post.ID}
+            for translation in article.translations:
+                wp_translation = handleArticle(
+                    translation.id, translation_term=nt)
+
+                if wp_translation != None:
+                    postlang = [
+                        lang for lang in wp_translation.terms if lang.taxonomy == 'language']
+
+                    if len(postlang) > 0:
+                        ntdesc[f'{postlang[0].slug}'] = wp_translation.ID
+                    else:
+                        print('ERROR', translation.language, 'not defined')
+
+            nt.description = phpserialize.dumps(ntdesc)
+            w.session.add(nt)
+            w.session.commit()
+
         return wp_post
     except Exception as e:
         logging.error(e)

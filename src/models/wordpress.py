@@ -4,8 +4,8 @@ import sqlalchemy
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm.collections import attribute_mapped_collection
-from sqlalchemy import Table, Column, Integer, String, BigInteger, DateTime, Sequence, ForeignKey, Text, UniqueConstraint, join, SmallInteger
-from sqlalchemy.orm import scoped_session, sessionmaker, relationship, backref, column_property
+from sqlalchemy import Table, Column, Integer, String, BigInteger, DateTime, Sequence, ForeignKey, Text, UniqueConstraint, join, SmallInteger, and_
+from sqlalchemy.orm import scoped_session, sessionmaker, relationship, backref, column_property, foreign
 
 from urllib.parse import urlparse
 from pathlib import Path
@@ -178,37 +178,46 @@ class PostMeta(Model):
         self.meta_value = value
 
 
-TERM_TABLE = Table(
-    "wp_terms", Model.metadata,
-    Column('term_id', Integer, primary_key=True, nullable=False),
-    Column('name', String(length=55), nullable=False),
-    Column('slug', String(length=200), nullable=False),
-    Column('term_group', Integer, nullable=False, default=0),
-    UniqueConstraint('slug'),
-)
+# TERM_TABLE = Table(
+#     "wp_terms", Model.metadata,
+#     Column('term_id', Integer, primary_key=True, nullable=False),
+#     Column('name', String(length=55), nullable=False),
+#     Column('slug', String(length=200), nullable=False),
+#     Column('term_group', Integer, nullable=False, default=0),
+#     UniqueConstraint('slug'),
+# )
 
-TERM_TAXONOMY_TABLE = Table(
-    "wp_term_taxonomy", Model.metadata,
-    Column('term_taxonomy_id', Integer, primary_key=True, nullable=False),
-    Column('term_id', Integer, ForeignKey('wp_terms.term_id'), nullable=False),
-    Column('taxonomy', String(length=32), nullable=False),
-    Column('description', Text(length=None), nullable=False, default=''),
-    Column('parent', Integer, ForeignKey(
-        'wp_term_taxonomy.term_taxonomy_id'), nullable=False, default=0),
-    Column('count', Integer, nullable=False, default=0),
-    UniqueConstraint('term_id', 'taxonomy'),
-)
+# TERM_TAXONOMY_TABLE = Table(
+#     "wp_term_taxonomy", Model.metadata,
+#     Column('term_taxonomy_id', Integer, primary_key=True, nullable=False),
+#     Column('term_id', Integer, ForeignKey('wp_terms.term_id'), nullable=False),
+#     Column('taxonomy', String(length=32), nullable=False),
+#     Column('description', Text(length=None), nullable=False, default=''),
+#     Column('parent', Integer, ForeignKey(
+#         'wp_term_taxonomy.term_taxonomy_id'), nullable=False, default=0),
+#     Column('count', Integer, nullable=False, default=0),
+#     UniqueConstraint('term_id', 'taxonomy'),
+# )
 
-TERM_TAXONOMY_JOIN = join(TERM_TABLE, TERM_TAXONOMY_TABLE)
+# TERM_TAXONOMY_JOIN = join(TERM_TABLE, TERM_TAXONOMY_TABLE)
 
-TERM_RELATIONSHIP_TABLE = Table(
-    'wp_term_relationships', Model.metadata,
-    Column('object_id', Integer, ForeignKey(
-        'wp_posts.ID'), primary_key=True, nullable=False),
-    Column('term_taxonomy_id', Integer, ForeignKey(
-        TERM_TAXONOMY_TABLE.c.term_taxonomy_id), primary_key=True, nullable=False)
-)
+# TERM_RELATIONSHIP_TABLE = Table(
+#     'wp_term_relationships', Model.metadata,
+#     Column('object_id', Integer, ForeignKey(
+#         'wp_posts.ID'), ForeignKey(
+#         'wp_terms.term_id'), primary_key=True, nullable=False),
+#     Column('term_taxonomy_id', Integer, ForeignKey(
+#         TERM_TAXONOMY_TABLE.c.term_taxonomy_id), primary_key=True, nullable=False)
+# )
 
+
+class TermRelationship(Model):
+    __tablename__ = 'wp_term_relationships'
+    object_id = Column(Integer, ForeignKey(
+        'wp_posts.ID'), ForeignKey(
+        'wp_terms.term_id'), primary_key=True, nullable=False)
+    term_taxonomy_id = Column(Integer, ForeignKey(
+        'wp_term_taxonomy.term_taxonomy_id'), primary_key=True, nullable=False)
 
 class Post(Model):
     # Table fields
@@ -252,10 +261,13 @@ class Post(Model):
     comments = relationship('Comment', back_populates="post")
     meta = relationship('PostMeta', collection_class=attribute_mapped_collection(
         'meta_key'), back_populates="post")
-    terms = relationship(
-        "Term",
-        secondary=TERM_RELATIONSHIP_TABLE,
-        back_populates='posts')
+
+    # terms = relationship(
+    #     "Term",
+    #     secondary=TERM_RELATIONSHIP_TABLE,
+    #     back_populates='posts')
+
+    terms = relationship('Term', secondary=TermRelationship.__table__, primaryjoin='and_(Post.ID == TermRelationship.object_id)', secondaryjoin='and_(TermRelationship.term_taxonomy_id == Term.id)')
 
     def __repr__(self):
         return f"<WpPost(ID={self.ID} post_type='{self.post_type}' post_title='{self.post_title}')>\n"
@@ -267,22 +279,59 @@ class Post(Model):
         else:
             self.meta[key].meta_value = value
 
-# for just create a #%%
-# k = Term(slug='kakkakakaakakak', name='MEGAKKKKK', taxonomy='category')
+
+# class Term(Model):
+#     # Table fields
+#     __table__ = TERM_TAXONOMY_JOIN
+#     id = column_property(
+#         TERM_TABLE.c.term_id,
+#         TERM_TAXONOMY_TABLE.c.term_id)
+
+#     # ORM layer relationships
+#     posts = relationship(
+#         "Post",
+#         secondary=TERM_RELATIONSHIP_TABLE,
+#         back_populates='terms')
+
+#     meta = relationship("TermMeta", collection_class=attribute_mapped_collection(
+#         'meta_key'), back_populates='term')
+
+#     def __repr__(self):
+#         return f"<WpTerm(ID={self.id} name='{self.name}' slug='{self.slug}') taxonomy='{self.taxonomy}')>\n"
+
+
+class TermBase(Model):
+    __tablename__ = 'wp_terms'
+
+    term_id = Column(Integer, primary_key=True, nullable=False)
+    name = Column(String(length=55), nullable=False)
+    slug = Column(String(length=255), nullable=False)
+    term_group = Column(Integer, nullable=False, default=0)
+
+
+class TermTaxonomy(Model):
+    __tablename__ = 'wp_term_taxonomy'
+
+    term_taxonomy_id = Column(Integer, primary_key=True, nullable=False)
+    term_id = Column(Integer, ForeignKey('wp_terms.term_id'), nullable=False)
+    taxonomy = Column(String(length=32), nullable=False)
+    description = Column(Text(length=None), nullable=False, default='')
+    parent = Column(Integer, ForeignKey(
+        'wp_term_taxonomy.term_taxonomy_id'), nullable=False, default=0)
+    count = Column(Integer, nullable=False, default=0)
+
 
 
 class Term(Model):
-    # Table fields
-    __table__ = TERM_TAXONOMY_JOIN
+    __table__ = join(TermBase.__table__, TermTaxonomy.__table__)
     id = column_property(
-        TERM_TABLE.c.term_id,
-        TERM_TAXONOMY_TABLE.c.term_id)
+        TermBase.__table__.c.term_id,
+        TermTaxonomy.__table__.c.term_id)
 
-    # ORM layer relationships
-    posts = relationship(
-        "Post",
-        secondary=TERM_RELATIONSHIP_TABLE,
-        back_populates='terms')
+    terms = relationship(
+        'Term', primaryjoin=and_(id==TermRelationship.object_id), secondary=TermRelationship.__table__, secondaryjoin=and_(id==TermRelationship.term_taxonomy_id))
+        
+    posts = relationship('Post', primaryjoin=and_(id==TermRelationship.term_taxonomy_id), secondary=TermRelationship.__table__, secondaryjoin=and_(TermRelationship.object_id==Post.ID), viewonly=True)
 
     meta = relationship("TermMeta", collection_class=attribute_mapped_collection(
         'meta_key'), back_populates='term')
@@ -301,6 +350,18 @@ class TermMeta(Model):
 
     def __repr__(self):
         return f"<WpTermMeta(meta_id={self.meta_id} meta_key='{self.meta_key}' meta_value='{self.meta_value}')"
+
+
+# class TermRelation(Model):
+#     __tablename__ = 'wp_term_relationships'
+#     object_id = Column(Integer, primary_key=True)
+#     term_taxonomy_id = Column(Integer)
+#     termObject = relationship('term',primaryjoin="and_(wp_term_relationships.object_id == wp_term.term_id)")
+#     posts =
+
+
+# class TermTaxonomy(Model):
+#     __table__ = TERM_TAXONOMY_TABLE
 
 
 class Comment(Model):

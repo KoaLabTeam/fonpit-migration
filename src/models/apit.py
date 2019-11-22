@@ -185,6 +185,7 @@ class Article(Model):
     source2URL = Column(String(length=255))
     source3Name = Column(String(length=255))
     source3URL = Column(String(length=255))
+    translationSource_id = Column(Integer, ForeignKey('Article.id'))
 
     heroImage_id = Column(Integer, ForeignKey(
         'UserFile.id'))  # foregin keys here/
@@ -215,6 +216,8 @@ class Article(Model):
 
     sections = relationship('ArticleSection', back_populates='article')
     comments = relationship('ArticleComment', back_populates='article')
+    translationSource = relationship('Article', uselist=False, remote_side=[id], back_populates='translations')
+    translations = relationship('Article', foreign_keys=[translationSource_id], back_populates='translationSource')
 
     def __repr__(self):
         return "<ApitArticle(id='%s', title='%s', publishingDate='%s')>" % (self.id, self.title, self.publishingDate)
