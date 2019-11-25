@@ -467,7 +467,6 @@ class Option(Model):
     # Table fields
     __tablename__ = 'wp_options'
     option_id = Column(Integer, primary_key=True, nullable=False)
-    blog_id = Column(Integer, primary_key=True, nullable=False)
     option_name = Column(String(length=64), primary_key=True, nullable=False)
     option_value = Column(Text(length=None), nullable=False)
     autoload = Column(String(length=3), nullable=False)

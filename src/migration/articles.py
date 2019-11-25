@@ -121,6 +121,7 @@ def handleArticle(articleId, translation_term=None):
         wp_post.post_slug = article.uri_uri.replace('/', '')
         wp_post.post_content = text
         wp_post.post_date = article.publishingDate
+        wp_post.post_date_gmt = article.publishingDate
         wp_post.post_modified = article.modificationDate
 
         wp_post.terms = categories + tags + getLanguage(article.language)
@@ -128,6 +129,7 @@ def handleArticle(articleId, translation_term=None):
         post_status = 'publish'
         if article.publishingDate > datetime.now():
             post_status = 'future'
+            # add cron option for future
 
         wp_post.author = wp_author
         wp_post.post_status = post_status
