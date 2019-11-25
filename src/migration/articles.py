@@ -229,6 +229,8 @@ def triggerAutoImageImport(postId):
         logging.info(f'triggering id: {postId}')
         result = w.api.put(f'/posts/{postId}', data=json.dumps({'post_status': post.post_status}),
                            headers={'content-type': 'application/json'})
+        w.session.add(post)
+        w.session.commit()
     except Exception as e:
         logging.error(e)
 
