@@ -15,6 +15,7 @@ from sqlalchemy import desc
 from concurrent.futures import ThreadPoolExecutor as PoolExecutor
 from slugify import slugify
 from time import time
+from datetime import datetime
 
 
 log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -109,8 +110,12 @@ def handleArticle(articleId, translation_term=None):
 
         wp_post.terms = categories + tags + getLanguage(article.language)
 
+        post_status = 'publish'
+        if article.publishingDate > datetime.now():
+            post_status = 'future'
+
         wp_post.author = wp_author
-        wp_post.post_status = 'publish'
+        wp_post.post_status = post_status
 
         previewImage = image = article.previewImageLegacy or article.heroImage or article.previewImage
         if previewImage != None:
