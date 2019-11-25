@@ -29,6 +29,14 @@ def syncMatchingArticleComments():
     maxresults = len(commentIds)
     pbar = tqdm(total=maxresults)
 
+    def handleArticleCommentThreaded(commentId):
+        w.session()
+        a.session()
+        comment = handleArticleComment(commentId)
+        w.session.remove()
+        a.session.remove()
+        return comment
+
     if len(commentIds) > 0:
         with PoolExecutor(max_workers=10) as executor:
             for _ in executor.map(handleArticleCommentThreaded, commentIds):
