@@ -16,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor as PoolExecutor
 from slugify import slugify
 from time import time
 from datetime import datetime
+from pytz import timezone
 
 
 log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -121,7 +122,8 @@ def handleArticle(articleId, translation_term=None):
         wp_post.post_slug = article.uri_uri.replace('/', '')
         wp_post.post_content = text
         wp_post.post_date = article.publishingDate
-        wp_post.post_date_gmt = article.publishingDate
+        wp_post.post_date_gmt = article.publishingDate.astimezone(
+            timezone('GMT'))
         wp_post.post_modified = article.modificationDate
 
         wp_post.terms = categories + tags + getLanguage(article.language)
