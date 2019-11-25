@@ -226,9 +226,12 @@ def triggerAutoImageImports(limit=100, chunksize=10):
 def triggerAutoImageImport(postId):
     try:
         post = w.Post.q.filter(w.Post.ID == postId).first()
-        logging.info(f'triggering id: {postId}')
+        status = post.post_status
+        logging.info(f'triggering id: {postId} {status}')
         result = w.api.put(f'/posts/{postId}', data=json.dumps({'post_status': post.post_status}),
                            headers={'content-type': 'application/json'})
+
+        post.post_status = status
         w.session.add(post)
         w.session.commit()
     except Exception as e:
