@@ -33,6 +33,15 @@ def uniqid(prefix=''):
     return prefix + hex(int(time()))[2:10] + hex(int(time()*1000000) % 0x100000)[2:7]
 
 
+def cleanAll():
+    w.session.execute("DELETE wp_terms, wp_term_taxonomy FROM wp_terms INNER JOIN wp_term_taxonomy ON wp_terms.term_id = wp_term_taxonomy.term_id WHERE wp_term_taxonomy.taxonomy = 'term_translations'")
+    w.session.execute("DELETE wp_terms, wp_term_taxonomy FROM wp_terms INNER JOIN wp_term_taxonomy ON wp_terms.term_id = wp_term_taxonomy.term_id WHERE wp_term_taxonomy.taxonomy = 'post_translations'")
+    w.session.execute('''TRUNCATE TABLE wp_comments''')
+    w.session.execute('''TRUNCATE TABLE wp_commentmeta''')
+    w.Post.q.filter(w.Post.post_type == 'post').delete()
+    w.session.commit()
+
+
 def syncArticles(limit=100, chunksize=10, lastModificationDate='1970-01-01 0:00'):
     logging.info('start importing articles')
     articleCount = a.session.query(a.Article.id).filter(
