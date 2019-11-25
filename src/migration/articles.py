@@ -44,8 +44,8 @@ def cleanAll():
         "DELETE t, tt, tm, tr FROM wp_terms t LEFT JOIN wp_term_taxonomy tt ON t.term_id = tt.term_id LEFT JOIN wp_term_relationships tr ON tr.term_taxonomy_id = tt.term_taxonomy_id LEFT JOIN wp_termmeta tm ON t.term_id = tm.term_id WHERE tt.taxonomy = 'post_tag'")
     w.session.execute('''TRUNCATE TABLE wp_comments''')
     w.session.execute('''TRUNCATE TABLE wp_commentmeta''')
-    w.Post.q.filter(w.Post.post_type == 'post').delete()
-    w.session.commit()
+    w.session.execute(
+        "DELETE p, pm, tr FROM wp_posts p LEFT JOIN wp_postmeta pm ON p.ID = pm.post_id LEFT JOIN wp_term_relationships tr ON p.ID = tr.object_id WHERE p.post_type = 'post'")
 
 
 def syncArticles(limit=100, chunksize=10, lastModificationDate='1970-01-01 0:00'):
