@@ -34,8 +34,10 @@ def uniqid(prefix=''):
 
 
 def cleanAll():
-    w.session.execute("DELETE wp_terms, wp_term_taxonomy FROM wp_terms INNER JOIN wp_term_taxonomy ON wp_terms.term_id = wp_term_taxonomy.term_id WHERE wp_term_taxonomy.taxonomy = 'term_translations'")
-    w.session.execute("DELETE wp_terms, wp_term_taxonomy FROM wp_terms INNER JOIN wp_term_taxonomy ON wp_terms.term_id = wp_term_taxonomy.term_id WHERE wp_term_taxonomy.taxonomy = 'post_translations'")
+    w.session.execute(
+        "DELETE t, tt, tm, tr FROM wp_terms t LEFT JOIN wp_term_taxonomy tt ON t.term_id = tt.term_id LEFT JOIN wp_term_relationships tr ON tr.term_taxonomy_id = tt.term_taxonomy_id LEFT JOIN wp_termmeta tm ON t.term_id = tm.term_id WHERE tt.taxonomy = 'term_translations'")
+    w.session.execute(
+        "DELETE t, tt, tm, tr FROM wp_terms t LEFT JOIN wp_term_taxonomy tt ON t.term_id = tt.term_id LEFT JOIN wp_term_relationships tr ON tr.term_taxonomy_id = tt.term_taxonomy_id LEFT JOIN wp_termmeta tm ON t.term_id = tm.term_id WHERE tt.taxonomy = 'post_translations'")
     w.session.execute(
         "DELETE t, tt, tm, tr FROM wp_terms t LEFT JOIN wp_term_taxonomy tt ON t.term_id = tt.term_id LEFT JOIN wp_term_relationships tr ON tr.term_taxonomy_id = tt.term_taxonomy_id LEFT JOIN wp_termmeta tm ON t.term_id = tm.term_id WHERE tt.taxonomy = 'category'")
     w.session.execute(
